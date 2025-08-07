@@ -35,8 +35,9 @@ from torch import Tensor
 import logging
 import numpy as np
 import torch
-
+import tracemalloc
 ch = torch
+import psutil
 
 
 class TRAKer:
@@ -133,7 +134,8 @@ class TRAKer:
                 :math:`XTX` term in score computers when computing the matrix
                 inverse :math:`(XTX)^{-1}`. Defaults to 0.
         """
-
+        tracemalloc.start()
+        print("memory usage before TRAKer init:", tracemalloc.get_traced_memory())
         self.model = model
         self.task = task
         self.train_set_size = train_set_size
@@ -156,11 +158,14 @@ class TRAKer:
             self.num_params_for_grad = self.num_params
         # inits self.projector
         self.proj_seed = projector_seed
+        print("memory before self.init_projector:", psutil.virtual_memory().used / (1024 ** 3), "GB")
         self.init_projector(
             projector=projector,
             proj_dim=proj_dim,
             proj_max_batch_size=proj_max_batch_size,
         )
+        print("memory after self.init_projector:", psutil.virtual_memory().used / (1024 ** 3), "GB")
+        print("memory usage after TRAKer init:", tracemalloc.get_traced_memory())
 
         # normalize to make X^TX numerically stable
         # doing this instead of normalizing the projector matrix
@@ -173,7 +178,7 @@ class TRAKer:
 
         if type(self.task) is str:
             self.task = TASK_TO_MODELOUT[self.task]()
-
+        
         self.gradient_computer = gradient_computer(
             model=self.model,
             task=self.task,
@@ -182,7 +187,7 @@ class TRAKer:
             device=self.device,
             grad_wrt=self.grad_wrt,
         )
-
+        print("memory usage after gradient_computer init:", psutil.virtual_memory().used / (1024 ** 3), "GB")
         if score_computer is None:
             score_computer = BasicScoreComputer
         self.score_computer = score_computer(
@@ -191,6 +196,7 @@ class TRAKer:
             logging_level=logging_level,
             lambda_reg=self.lambda_reg,
         )
+        print("memory usage after score_computer init:", psutil.virtual_memory().used / (1024 ** 3), "GB")
 
         metadata = {
             "JL dimension": self.proj_dim,
@@ -209,6 +215,8 @@ class TRAKer:
             logging_level=logging_level,
             use_half_precision=use_half_precision,
         )
+
+        print("memory usage after saver init:", psutil.virtual_memory().used / (1024 ** 3), "GB")
 
         self.ckpt_loaded = "no ckpt loaded"
 
